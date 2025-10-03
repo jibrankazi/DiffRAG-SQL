@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/diffragsql/__init__.py
+src/diffragsql/data.py
+src/diffragsql/evaluate.py
+src/diffragsql/metrics.py
+src/diffragsql/reader.py
+src/diffragsql/retriever.py
+src/diffragsql/to_latex.py
+src/diffragsql/train.py
+src/diffragsql.egg-info/PKG-INFO
+src/diffragsql.egg-info/SOURCES.txt
+src/diffragsql.egg-info/dependency_links.txt
+src/diffragsql.egg-info/top_level.txt
+tests/test_basic.py
