@@ -1,30 +1,27 @@
-{
-  "seed": 1337,
-  "experiment_name": "squad_demo",
-  "data": {
-    "dataset_id": "squad",
-    "split_train": "train[:1%]",
-    "split_eval": "validation[:1%]"
-  },
-  "retriever": {
-    "type": "tfidf",
-    "max_docs": 5
-  },
-  "reader": {
-    "model_name": "distilbert-base-uncased",
-    "epochs": 1,
-    "batch_size": 8,
-    "lr": 3e-05,
-    "max_length": 384,
-    "doc_stride": 128
-  },
-  "eval": {
-    "abstain_threshold": 0.15
-  },
-  "outputs": {
-    "run_dir": "runs/squad_demo",
-    "results_json": "runs/squad_demo/results.json",
-    "latex_table": "paper/results.tex",
-    "fig_dir": "paper/figures"
-  }
-}
+seed: 42
+
+data:
+  dataset_id: squad
+  split_train: "train[:2%]"
+  split_eval:  "validation[:5%]"
+
+retriever:
+  type: tfidf
+  max_docs: 15   # more passages helps F1
+
+reader:
+  model_name: deepset/roberta-base-squad2  # QA-finetuned checkpoint
+  epochs: 0        # use as-is (already finetuned)
+  batch_size: 8
+  lr: 3e-5
+  max_length: 384
+  doc_stride: 128
+
+eval:
+  abstain_threshold: 0.05   # lower => fewer abstentions
+
+outputs:
+  run_dir: runs/squad_demo
+  results_json: runs/squad_demo/results.json
+  latex_table: paper/results.tex
+  fig_dir: paper/figures

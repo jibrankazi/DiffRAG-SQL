@@ -1,0 +1,6 @@
+{
+  "EM": 0.02,
+  "F1": 0.030666666666666665,
+  "Faithfulness@k": 0.15,
+  "AbstentionRate@thr": 0.015
+}

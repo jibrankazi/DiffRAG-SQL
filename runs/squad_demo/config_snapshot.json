@@ -1,0 +1,29 @@
+{
+  "seed": 42,
+  "data": {
+    "dataset_id": "squad",
+    "split_train": "train[:2%]",
+    "split_eval": "validation[:5%]"
+  },
+  "retriever": {
+    "type": "tfidf",
+    "max_docs": 15
+  },
+  "reader": {
+    "model_name": "deepset/roberta-base-squad2",
+    "epochs": 0,
+    "batch_size": 8,
+    "lr": "3e-5",
+    "max_length": 384,
+    "doc_stride": 128
+  },
+  "eval": {
+    "abstain_threshold": 0.05
+  },
+  "outputs": {
+    "run_dir": "runs/squad_demo",
+    "results_json": "runs/squad_demo/results.json",
+    "latex_table": "paper/results.tex",
+    "fig_dir": "paper/figures"
+  }
+}
