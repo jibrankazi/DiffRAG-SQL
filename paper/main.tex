@@ -1,0 +1,23 @@
+\documentclass[10pt]{article}
+\usepackage{times}
+\usepackage{graphicx}
+\title{DiffRAG-SQL: Differentiable Retrieval + SQL Reasoning for Faithful QA}
+\author{Jibran Kazi (JK)}
+\date{October 2025}
+\begin{document}
+\maketitle
+\begin{abstract}
+We present a reproducible QA system with retrieval and evidence-grounded answering.
+\end{abstract}
+\section{Method}
+We retrieve $k$ contexts per question using TF-IDF and predict spans with a QA reader.
+\section{Experiments}
+We evaluate on SQuAD (API-fetched). Metrics: EM, F1, Faithfulness@k, and abstention.
+\section{Results}
+\input{results.tex}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\linewidth]{figures/faith_vs_em.png}
+\caption{Faithfulness vs EM scatter.}
+\end{figure}
+\end{document}
