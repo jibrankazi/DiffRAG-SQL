@@ -144,4 +144,4 @@ Kazi Jibran Rafat Samie
 
 © 2025 Kazi Jibran Rafat Samie
 Independent research project on retrieval-augmented reasoning and faithful generation.
-Part of my doctoral research direction at the University of Toronto (PhD, Computer Science – Fall 2026).
+Part of my doctoral research direction.
