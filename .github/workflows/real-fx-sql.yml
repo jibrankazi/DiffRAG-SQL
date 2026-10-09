@@ -17,9 +17,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Fetch real official 2025 observations, insert into SQLite and execute supported English questions
+      - name: List the actually supported English queries without invoking a remote API
+        run: PYTHONPATH=src python -m diffragsql.real_fx_sql --list-questions
+      - name: Fetch real official 2025 observations, build SQLite, answer an English question and verify all seven SQL traces
         run: |
-          PYTHONPATH=src python -m diffragsql.real_fx_sql
+          PYTHONPATH=src python -m diffragsql.real_fx_sql --question "What was the average official USD to CAD rate for 2025?"
       - name: Independently verify genuine source, SQLite, seven traced SQL answers and refusal
         run: |
           python - <<'PY'
