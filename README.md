@@ -24,7 +24,11 @@ The seven supported questions calculate observation count, annual average, maxim
 **Run locally:**
 
 ```bash
-PYTHONPATH=src python -m diffragsql.real_fx_sql
+# Show all seven supported genuine-source questions; no API call required:
+PYTHONPATH=src python -m diffragsql.real_fx_sql --list-questions
+
+# Download genuine official data, build and query SQLite, verify and save traces:
+PYTHONPATH=src python -m diffragsql.real_fx_sql --question "What was the average official USD to CAD rate for 2025?"
 ```
 
 No external Python dependencies are needed for this component. It uses the built-in `sqlite3`, `urllib` and JSON libraries. **This is deterministic whitelisted text-to-SQL**, not a neural question-parsing model. Seven predefined templates are not evidence of general text-to-SQL ability, differentiability, SQL safety under arbitrary models, or live production reliability.
