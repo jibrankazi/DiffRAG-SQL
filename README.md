@@ -1,3 +1,18 @@
+## Actual Stanford SQuAD pretrained-reader experiment — October 9, 2026
+
+[Passing full pretrained-inference workflow](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/37935263617) downloaded real SQuAD v1.1 dev questions and ran a pretrained DistilBERT QA reader plus TF-IDF retrieval.
+
+| Metric (16 genuine SQuAD dev questions, 16 distinct paragraphs) | Measured value |
+| --- | ---: |
+| Source paragraph retrieved among top 3 | 16/16 |
+| Extractive answer exact match | 11/16 (68.75%) |
+| Mean answer token F1 | 0.7470 |
+
+**Conclusion:** extractive QA works on this tiny official dataset slice. Retrieval is unusually easy here because the indexed corpus consists only of 16 paragraphs containing the tested questions' ground truths. **These numbers are not credible estimates of general SQuAD or production RAG performance.** Neither SQL execution, differentiable retrieval nor trainable end-to-end gradients were implemented or validated.
+
+Run: python -m diffragsql.real_squad_experiment --count 16 after installing full QA reader dependencies. Predictions and ground truth checks are in the workflow artifact.
+
+---
 # DiffRAG-SQL — implementation and verification status
 
 **Implemented baseline:** TF-IDF document retrieval, a pretrained Hugging Face extractive question-answering reader, exact-match/F1 evaluation, abstention-style reporting and export of metrics to LaTeX. **Not implemented or verified:** differentiable SQL-query execution, joint retriever/reader gradient updates, and full end-to-end SQL-grounded learning. The current `train.py` is an inference/demo pipeline, not a neural training loop.

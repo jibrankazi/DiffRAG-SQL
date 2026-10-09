@@ -1,0 +1,23 @@
+name: Real Stanford SQuAD extractive QA
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  model-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install full QA reader and retrieval requirements
+        run: pip install -e . scikit-learn numpy pyyaml requests transformers==4.44.2 torch pytest
+      - run: python -m pytest -q tests/
+      - name: Evaluate actual official SQuAD dev sample with pretrained reader
+        run: python -m diffragsql.real_squad_experiment --count 16
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actual-stanford-squad-qa-output
+          path: runs/real_squad/results.json
