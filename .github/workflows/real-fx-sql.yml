@@ -1,0 +1,54 @@
+name: Real Bank of Canada observations to verified SQL answers
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/real_fx_sql.py"
+      - ".github/workflows/real-fx-sql.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  genuine-official-database-grounding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch real official 2025 observations, insert into SQLite and execute supported English questions
+        run: |
+          PYTHONPATH=src python -m diffragsql.real_fx_sql
+      - name: Independently verify genuine source, SQLite, seven traced SQL answers and refusal
+        run: |
+          python - <<'PY'
+          import json, math, sqlite3
+          from pathlib import Path
+          folder=Path("runs/real_fx_sql")
+          summary=json.loads((folder/"verified_results.json").read_text())
+          assert summary["publisher"].startswith("Bank of Canada")
+          assert summary["source_url"].startswith("https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json")
+          assert len(summary["original_api_body_sha256"]) == 64
+          assert 200 <= summary["original_2025_real_observation_count"] <= 260
+          assert summary["actual_grounded_questions"] == 7
+          assert summary["verified_against_independent_python"] == 7
+          assert summary["unrecognized_question_refused"] is True
+          db=sqlite3.connect(folder/"real_fx_2025.sqlite3")
+          count=db.execute("SELECT COUNT(*) FROM fx_usdcad").fetchone()[0]
+          assert count == summary["original_2025_real_observation_count"]
+          actual_dates=db.execute("SELECT MIN(date),MAX(date) FROM fx_usdcad").fetchone()
+          assert actual_dates == (summary["first_original_date"],summary["last_original_date"])
+          assert db.execute("SELECT COUNT(*) FROM fx_usdcad WHERE cad_per_usd <= 0").fetchone()[0] == 0
+          for trace in summary["records"]:
+              assert trace["independent_python_reference_verified"]
+              assert trace["executed_sql"].startswith("SELECT ")
+              assert ";" not in trace["executed_sql"]
+              assert db.execute(trace["executed_sql"]).fetchall() == [tuple(r) for r in trace["actual_sql_rows"]]
+          print("Verified real official market quotes, original SQLite rows, 7 actual SQL answer traces, arbitrary query refusal.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actual-bank-of-canada-fx-sql-grounding-results
+          path: runs/real_fx_sql/
+          if-no-files-found: error
