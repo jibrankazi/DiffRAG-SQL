@@ -1,3 +1,26 @@
+# DiffRAG-SQL — implementation and verification status
+
+**Implemented baseline:** TF-IDF document retrieval, a pretrained Hugging Face extractive question-answering reader, exact-match/F1 evaluation, abstention-style reporting and export of metrics to LaTeX. **Not implemented or verified:** differentiable SQL-query execution, joint retriever/reader gradient updates, and full end-to-end SQL-grounded learning. The current `train.py` is an inference/demo pipeline, not a neural training loop.
+
+Lightweight component tests (no model downloads):
+```bash
+pip install -e . scikit-learn numpy pyyaml pytest
+python -m pytest -q
+```
+
+With optional external datasets and pretrained-model downloads, the project is organized around:
+```bash
+pip install -r requirements.txt
+pip install -e .
+python -m diffragsql.train --config configs/squad_demo.yaml
+python -m diffragsql.evaluate --config configs/squad_demo.yaml
+python -m diffragsql.to_latex --config configs/squad_demo.yaml
+```
+
+The full external-data/model workflow has not been validated in CI; published research and performance claims below must not be treated as reproduced experimental evidence.
+
+---
+
 DiffRAG-SQL: Differentiable Retrieval + SQL Reasoning for Faithful QA
 
 Overview
