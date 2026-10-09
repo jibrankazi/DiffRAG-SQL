@@ -169,4 +169,20 @@ def evaluate(output_dir="runs/real_fx_sql"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", default="runs/real_fx_sql")
-    evaluate(parser.parse_args().output)
+    parser.add_argument("--list-questions", action="store_true",
+                        help="Show the available, audited natural-language SQL queries")
+    parser.add_argument("--question", default=None,
+                        help="Run this exact supported English question on the real SQLite table")
+    args = parser.parse_args()
+    if args.list_questions:
+        print(json.dumps({"available_grounded_questions": list(QUESTIONS)}, indent=2))
+    else:
+        evaluate(args.output)
+        if args.question is not None:
+            connection = sqlite3.connect(Path(args.output) / "real_fx_2025.sqlite3")
+            try:
+                connection.execute("PRAGMA query_only = ON")
+                trace = answer(connection, args.question)
+                print(json.dumps({"asked_question_result": trace}, indent=2))
+            finally:
+                connection.close()
