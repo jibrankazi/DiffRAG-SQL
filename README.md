@@ -1,6 +1,38 @@
+## New executed trained SQL-intent baseline — October 12, 2026
+
+A [successful authenticated public-source CI
+run](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38324028295)
+now fits a supervised TF-IDF character-n-gram + logistic-regression
+classifier to **32 authored training paraphrases**, and evaluates against
+**16 nonidentical held-out paraphrases** across four supported operations:
+count, average, maximum, minimum. Measured held-out accuracy was
+**16/16 (100%)** on that small, authored, single-domain evaluation.
+This is not an independent Spider/BIRD result and should not be used to
+suggest broad generalizability.
+
+The new [trained_fx_rag_sql.py](src/diffragsql/trained_fx_rag_sql.py)
+combines model-fitted intent prediction with actual SQLite schema verification
+and audited, parameter-bound SQL; the workflow retrieved original 2025 Bank
+of Canada FXUSDCAD rate observations and independently cross-checked four
+executed SQL answers against Python calculations from the original rows.
+CI artifacts preserve the source download digest, confusion matrix, fitted
+model evaluation, SQL traces and original-source SQLite table.
+
+```sh
+python -m pip install numpy scikit-learn
+PYTHONPATH=src python -m diffragsql.trained_fx_rag_sql
+```
+
+**Limitations:** No jointly trained differentiable retriever, no open-ended
+SQL generation, and no evaluation on independent databases, Spider/BIRD, or
+SQL-join schema transfer. This is a genuinely **trained, measured restricted
+SQL-intent baseline**, not a complete generalizable RAG-to-SQL system.
+
+---
+
 # DiffRAG-SQL — verified real-data SQL grounding and extractive QA research
 
-The repository currently contains **two separately executed research baselines**. The original project name describes a longer-term differentiable retrieval plus SQL research goal. **There is not yet a trained differentiable retrieval/SQL model or integrated RAG→SQL agent.** Do not attribute such a system or fabricated paper results to these executions.
+The repository contains **multiple separately executed research baselines**, including the new domain-limited trained intent classifier. The original project name describes a longer-term differentiable retrieval plus SQL research goal. **There is not yet a trained differentiable retrieval/SQL model or integrated RAG→SQL agent.** Do not attribute such a system or fabricated paper results to these executions.
 
 ## 1. Working genuine public data → SQLite → question-to-SQL → independently checked answers
 
