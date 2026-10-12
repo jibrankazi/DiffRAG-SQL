@@ -112,7 +112,7 @@ def benchmark(estimator):
 def grounded_answer(connection, estimator, prompt: str):
     schema = source_schema_evidence(connection)
     dates = DATE_RX.findall(prompt)
-    if len(dates) != 2 or not re.fullmatch(r"[\w\s?.,:/-]+", prompt):
+    if (len(dates) != 2 or "--" in prompt or "/*" in prompt or\n            re.search(r"\\b(drop|delete|insert|update|alter|attach|pragma|union|join)\\b", prompt, re.I) or\n            not re.fullmatch(r"[\\w\\s?.,:/-]+", prompt)):
         raise ValueError("Only bounded two-date read-only exchange-rate questions are accepted")
     if not ("usd" in prompt.casefold() and "cad" in prompt.casefold()):
         raise ValueError("Question must explicitly identify USD and CAD")
