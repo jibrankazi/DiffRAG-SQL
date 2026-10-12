@@ -1,0 +1,68 @@
+name: Real Bank of Canada schema-retrieved and parameterized SQL evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/real_fx_schema_rag.py"
+      - "tests/test_real_fx_schema_rag.py"
+      - ".github/workflows/schema-rag-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-grounded-retrieval-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the repository retriever dependencies and pytest
+        run: pip install numpy scikit-learn pytest
+      - name: Validate schema retrieval, source identity, strict SQL and injection refusal
+        run: PYTHONPATH=src pytest -q tests/test_real_fx_schema_rag.py tests/test_real_fx_date_windows.py
+      - name: Fetch authentic Bank of Canada data, retrieve schema, execute and verify SQL
+        run: PYTHONPATH=src python -m diffragsql.real_fx_schema_rag
+      - name: Independently replay actual published-rate calculations and SQL traces
+        run: |
+          python - <<'PY'
+          import json,sqlite3,math
+          from pathlib import Path
+          root=Path("runs/real_fx_schema_grounded_sql")
+          p=json.loads((root/"source_grounded_sql_results.json").read_text())
+          assert p["original_source_url"].startswith("https://www.bankofcanada.ca/valet/")
+          assert len(p["original_download_sha256"])==64
+          assert 200<=p["genuine_source_rows"]<=260
+          assert p["grounded_retrieval_and_sql_answers"]==4
+          assert p["verified_against_actual_original_source_rows"]==4
+          assert p["integrated_tf_idf_schema_retrieval"] is True
+          assert p["trained_text_to_sql_model"] is False
+          assert p["end_to_end_differentiable_rag"] is False
+          with sqlite3.connect(root/"genuine_2025_fx.sqlite3") as db:
+              for row in p["records"]:
+                  assert row["schema_evidence"]["source_schema_checked_in_sqlite"] is True
+                  assert row["retrieved_operator"]==row["operator"]
+                  assert row["retrieval_similarity"]>0
+                  a,b=row["bound_parameters"]
+                  assert "2025-01-01"<=a<=b<="2025-12-31"
+                  assert row["executed_sql"].count("?")==2
+                  observed=db.execute(row["executed_sql"],(a,b)).fetchone()[0]
+                  assert observed==row["actual_sql_answer"]
+                  values=[v for (v,) in db.execute(
+                      "SELECT cad_per_usd FROM fx_usdcad WHERE date>=? AND date<=?",(a,b))]
+                  expected={"count":lambda:len(values),
+                      "average":lambda:sum(values)/len(values),
+                      "minimum":lambda:min(values),
+                      "maximum":lambda:max(values)}[row["operator"]]()
+                  assert math.isclose(expected,observed,abs_tol=1e-9)
+          print("PASS: 4 authentic 2025 FX original-source evidence -> retriever -> schema match -> safe SQL -> independently verified numeric result.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bank-of-canada-2025-tfidf-schema-grounded-parameterized-sql-evidence
+          path: runs/real_fx_schema_grounded_sql/
+          if-no-files-found: error

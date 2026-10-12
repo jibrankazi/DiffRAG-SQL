@@ -75,3 +75,20 @@ PYTHONPATH=src python -m diffragsql.real_fx_date_windows --question "What was th
 ```
 
 The [real-source GitHub Actions workflow](https://github.com/jibrankazi/DiffRAG-SQL/actions/workflows/real-fx-date-windows.yml) independently downloads Bank of Canada Valet source observations, builds fresh query-only SQLite, validates four distinct quarter-year queries against original Python computations, independently reruns the resulting parameterized queries, and uploads the original database, source digest and actual answer traces. Local unit tests use synthetic **software fixtures only**. This remains a deterministic text-to-SQL baseline rather than an LLM, a differentiable SQL model or a complete RAG system.
+
+## Schema-retrieved Bank of Canada SQL (evidence-constrained integration)
+
+The new src/diffragsql/real_fx_schema_rag.py joins the existing TF-IDF
+retriever with the official Bank of Canada original-source SQLite pipeline.
+It inspects the actual database schema, retrieves a supporting operation
+note, requires agreement with the vetted question parser, binds user date
+values in read-only SQL, and independently calculates answers from the actual
+downloaded original rows. The four distinct test prompts are reproduced by
+the schema-rag-sql.yml GitHub Actions pipeline with a downloadable artifact.
+
+This is a **retrieval-plus-SQL integration**, not a trained model. Schema
+notes are authored interpretations and TF-IDF is not differentiable.
+General natural-language-to-SQL, joint retriever training, multi-source
+reasoning and broad benchmark claims remain unimplemented.
+
+Run: PYTHONPATH=src python -m diffragsql.real_fx_schema_rag
