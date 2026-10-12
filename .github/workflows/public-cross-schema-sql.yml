@@ -1,0 +1,57 @@
+name: Independent Defog unseen-database SQL structure benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/public_cross_schema_benchmark.py"
+      - "tests/test_public_cross_schema_benchmark.py"
+      - ".github/workflows/public-cross-schema-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate-public-disjoint-databases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install model/test requirements
+        run: python -m pip install scikit-learn numpy scipy pytest
+      - name: Run leakage and structural feature unit tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_public_cross_schema_benchmark.py
+      - name: Fetch pinned Defog public questions and evaluate four entirely unseen databases
+        run: PYTHONPATH=src python -m diffragsql.public_cross_schema_benchmark
+      - name: Verify sourced evidence, measured metrics, and no SQL-generation overclaim
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          p = Path("runs/defog_cross_schema/evidence.json")
+          evidence = json.loads(p.read_text())
+          assert evidence["train_examples"] >= 100
+          assert evidence["evaluation_examples"] >= 20
+          assert len(evidence["source_sha256"]) == 2
+          assert all(len(h) == 64 for h in evidence["source_sha256"].values())
+          assert not set(evidence["train_databases"]) & set(evidence["evaluation_databases"])
+          assert len(evidence["example_results"]) == evidence["evaluation_examples"]
+          assert not evidence["model_generated_executable_sql"]
+          assert not evidence["execution_accuracy_measured"]
+          assert not evidence["general_cross_schema_sql_generation_proven"]
+          for name in ("trained_model_scores", "majority_training_label_baseline_scores"):
+              scores = evidence[name]
+              assert 0 <= scores["micro_f1"] <= 1
+              assert 0 <= scores["macro_f1"] <= 1
+              assert 0 <= scores["exact_structure_match_rate"] <= 1
+          print("Verified independent train/test DB partition and actual measured results.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-Defog-unseen-database-measured-structure-evidence
+          path: runs/defog_cross_schema/evidence.json
+          if-no-files-found: error
