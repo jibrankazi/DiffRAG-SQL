@@ -38,12 +38,12 @@ EVAL_DATABASES = frozenset({
 })
 FEATURES = ("join", "where", "group_by", "order_by", "limit", "aggregate")
 PATTERNS = (
-    r"\\bjoin\\b",
-    r"\\bwhere\\b",
-    r"\\bgroup\\s+by\\b",
-    r"\\border\\s+by\\b",
-    r"\\blimit\\b",
-    r"\\b(?:count|sum|avg|min|max)\\s*\\(",
+    r"\bjoin\b",
+    r"\bwhere\b",
+    r"\bgroup\s+by\b",
+    r"\border\s+by\b",
+    r"\blimit\b",
+    r"\b(?:count|sum|avg|min|max)\s*\(",
 )
 # The gold-query feature extractor measures clauses, not query equivalence.
 COMPILED = tuple(re.compile(pattern, re.I) for pattern in PATTERNS)
@@ -217,7 +217,7 @@ def run(output: str = "runs/defog_cross_schema") -> dict:
     report["executed_at_utc"] = datetime.now(timezone.utc).isoformat()
     path = Path(output)
     path.mkdir(parents=True, exist_ok=True)
-    (path / "evidence.json").write_text(json.dumps(report, indent=2) + "\\n", encoding="utf-8")
+    (path / "evidence.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in report.items() if k != "example_results"}, indent=2))
     return report
 
