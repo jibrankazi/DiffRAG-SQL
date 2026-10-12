@@ -61,3 +61,17 @@ python -m diffragsql.real_squad_experiment --count 16
 - Verified research figures beyond the above actual experiment records.
 
 **Project status:** working independently tested **real Bank of Canada SQLite/SQL execution** and **separate pretrained extractive QA**, not a complete differentiable SQL-RAG architecture. Earlier README draft references to synthetic relational training, peer-reviewed proof, 71.4% EM, 78.6 F1, 0.91 faithfulness and automatically synchronized manuscript outcomes were **unverified proposals**, not measured or reproducible findings.
+
+
+## New: safe calendar-bounded SQL over real Bank of Canada 2025 records
+
+The separately runnable [date-range SQL component](src/diffragsql/real_fx_date_windows.py) now supports four whitelisted English operator patterns (count, average, minimum and maximum), with **any valid start/end date inside 2025**. Dates are validated, checked for correct order and bound as SQLite `?` parameters. Unrecognized English, arbitrary SQL, invalid dates, reversed windows and other years are refused. The original seven historical SQL templates have **not changed**.
+
+Run:
+
+```bash
+PYTHONPATH=src python -m diffragsql.real_fx_date_windows --list-operators
+PYTHONPATH=src python -m diffragsql.real_fx_date_windows --question "What was the average official USD to CAD rate between 2025-04-01 and 2025-06-30?"
+```
+
+The [real-source GitHub Actions workflow](https://github.com/jibrankazi/DiffRAG-SQL/actions/workflows/real-fx-date-windows.yml) independently downloads Bank of Canada Valet source observations, builds fresh query-only SQLite, validates four distinct quarter-year queries against original Python computations, independently reruns the resulting parameterized queries, and uploads the original database, source digest and actual answer traces. Local unit tests use synthetic **software fixtures only**. This remains a deterministic text-to-SQL baseline rather than an LLM, a differentiable SQL model or a complete RAG system.

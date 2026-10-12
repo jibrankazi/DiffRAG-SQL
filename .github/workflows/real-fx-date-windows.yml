@@ -1,0 +1,65 @@
+name: Genuine Bank of Canada bounded date-to-SQL evaluation
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/real_fx_date_windows.py"
+      - "tests/test_real_fx_date_windows.py"
+      - ".github/workflows/real-fx-date-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  official-dated-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check untrusted date syntax, rejection and query-only SQLite (fixtures, not market data)
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_real_fx_date_windows.py' -v
+      - name: Fetch actual 2025 Bank of Canada data and execute four date-window natural-language questions
+        run: |
+          PYTHONPATH=src python -m diffragsql.real_fx_date_windows --question "What was the average official USD to CAD rate between 2025-04-01 and 2025-06-30?"
+      - name: Independently recheck source quotes, date boundaries and exact parameter binding
+        run: |
+          python - <<'PY'
+          import json, math, sqlite3
+          from pathlib import Path
+          root=Path("runs/real_fx_date_windows")
+          data=json.loads((root/"date_window_results.json").read_text())
+          assert data["publisher"]=="Bank of Canada Valet"
+          assert data["source_url"].startswith("https://www.bankofcanada.ca/valet/")
+          assert len(data["downloaded_body_sha256"])==64
+          assert 200 <= data["original_observed_rows"] <= 260
+          assert data["date_bounded_queries_executed"]==4
+          assert data["independently_verified_sql_answers"]==4
+          assert data["raw_sql_or_unrecognized_question_allowed"] is False
+          with sqlite3.connect(root/"original_2025_usdcad.sqlite3") as db:
+              assert db.execute("SELECT COUNT(*) FROM fx_usdcad").fetchone()[0]==data["original_observed_rows"]
+              for row in data["records"]:
+                  assert row["independent_source_python_verified"] is True
+                  assert row["executed_sql"].count("?")==2
+                  start,end=row["bound_parameters"]
+                  assert "2025-01-01"<=start<=end<="2025-12-31"
+                  assert db.execute(row["executed_sql"], (start,end)).fetchone()[0]==row["actual_sql_answer"]
+                  actual_prices=[r[0] for r in db.execute(
+                      "SELECT cad_per_usd FROM fx_usdcad WHERE date>=? AND date<=?",(start,end))]
+                  assert len(actual_prices)==row["original_observations_in_window"]
+                  kind=row["operator"]
+                  expected={"count":lambda:len(actual_prices),
+                            "average":lambda:sum(actual_prices)/len(actual_prices),
+                            "minimum":lambda:min(actual_prices),
+                            "maximum":lambda:max(actual_prices)}[kind]()
+                  assert math.isclose(expected,row["actual_sql_answer"],abs_tol=1e-9)
+          print("PASS: genuine Bank of Canada original observations, 4 bounded date-window queries, read-only parameterized SQL and independently rechecked rows.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-genuine-2025-bank-of-canada-parameterized-date-sql
+          path: runs/real_fx_date_windows/
+          if-no-files-found: error

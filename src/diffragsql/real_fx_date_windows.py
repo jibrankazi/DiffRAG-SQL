@@ -24,7 +24,7 @@ OPERATORS = {
 }
 PATTERN = re.compile(
     r"(?P<operation>.+?) between (?P<start>[0-9]{4}-[0-9]{2}-[0-9]{2}) "
-    r"and (?P<end>[0-9]{4}-[0-9]{2}-[0-9]{2})\\?"
+    r"and (?P<end>[0-9]{4}-[0-9]{2}-[0-9]{2})\?"
 )
 EVIDENCE_QUESTIONS = [
     "How many official USD to CAD daily observations were published between 2025-01-01 and 2025-03-31?",
