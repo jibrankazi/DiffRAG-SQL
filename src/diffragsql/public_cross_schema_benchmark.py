@@ -24,7 +24,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.multiclass import OneVsRestClassifier
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import FeatureUnion, make_pipeline
 
 UPSTREAM_COMMIT = "b83332416ea2d424b0cd12994a0a9ba100f4b4af"
 BASE = f"https://raw.githubusercontent.com/defog-ai/sql-eval/{UPSTREAM_COMMIT}/data"
@@ -120,23 +120,95 @@ def measures(true: list[list[int]], pred: list[list[int]]) -> dict:
     }
 
 
+def estimator_for(style: str):
+    """Fitted models are chosen by source-database-only cross-validation."""
+    word = TfidfVectorizer(ngram_range=(1, 2), strip_accents="unicode",
+                           sublinear_tf=True, lowercase=True)
+    char = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5),
+                           sublinear_tf=True, min_df=1)
+    if style == "word":
+        vector = word
+    elif style == "char":
+        vector = char
+    elif style == "hybrid":
+        vector = FeatureUnion([("words", word), ("characters", char)])
+    else:
+        raise ValueError("Unknown trained feature representation")
+    return make_pipeline(
+        vector,
+        OneVsRestClassifier(LogisticRegression(
+            class_weight="balanced", max_iter=2000, random_state=42,
+        )),
+    )
+
+
+def train_only_model_selection(train_rows: list[dict[str, str]]) -> tuple[str, list[dict]]:
+    """Leave-one-source-database-out CV; never consult evaluation DBs/SQL."""
+    candidates = []
+    for style in ("word", "char", "hybrid"):
+        actual, predicted = [], []
+        fold_summaries = []
+        for held_db in sorted(TRAIN_DATABASES):
+            fit_rows = [r for r in train_rows if r["db_name"] != held_db]
+            valid_rows = [r for r in train_rows if r["db_name"] == held_db]
+            assert fit_rows and valid_rows and all(
+                r["db_name"] != held_db for r in fit_rows
+            )
+            classifier = estimator_for(style)
+            classifier.fit(
+                [r["question"] for r in fit_rows],
+                [gold_features(r["query"]) for r in fit_rows],
+            )
+            y_expected = [gold_features(r["query"]) for r in valid_rows]
+            y_observed = classifier.predict(
+                [r["question"] for r in valid_rows]
+            ).astype(int).tolist()
+            actual.extend(y_expected)
+            predicted.extend(y_observed)
+            fold_summaries.append({
+                "held_out_training_database": held_db,
+                "train_rows": len(fit_rows),
+                "heldout_rows": len(valid_rows),
+                "all_fitted_rows_exclude_heldout_database": True,
+                "micro_f1": float(f1_score(
+                    y_expected, y_observed, average="micro", zero_division=0
+                )),
+            })
+        candidate = {
+            "style": style,
+            "source_database_only_leave_one_out_micro_f1": float(
+                f1_score(actual, predicted, average="micro", zero_division=0)
+            ),
+            "source_database_only_leave_one_out_macro_f1": float(
+                f1_score(actual, predicted, average="macro", zero_division=0)
+            ),
+            "source_database_only_leave_one_out_exact_structure_match": sum(
+                a == b for a, b in zip(actual, predicted)
+            ) / len(actual),
+            "folds": fold_summaries,
+        }
+        candidates.append(candidate)
+    best = max(
+        candidates,
+        key=lambda item: (
+            item["source_database_only_leave_one_out_micro_f1"],
+            item["source_database_only_leave_one_out_exact_structure_match"],
+        ),
+    )
+    return best["style"], candidates
+
+
 def evaluate(train_rows: list[dict[str, str]], eval_rows: list[dict[str, str]]) -> dict:
     train, test = select_disjoint(train_rows, eval_rows)
     x_train = [row["question"] for row in train]
     x_test = [row["question"] for row in test]
     y_train = [gold_features(row["query"]) for row in train]
     y_test = [gold_features(row["query"]) for row in test]
-    # Only source-domain train examples are fitted. The evaluation databases
-    # and SQL answers never enter the model or its vocabulary.
-    estimator = make_pipeline(
-        TfidfVectorizer(
-            ngram_range=(1, 2), strip_accents="unicode",
-            sublinear_tf=True, lowercase=True,
-        ),
-        OneVsRestClassifier(LogisticRegression(
-            class_weight="balanced", max_iter=2000, random_state=42,
-        )),
-    )
+    # Select representation by leave-one-*training*-database-out CV.
+    # The four external evaluation databases and all their gold SQL remain
+    # invisible to fitting, model choice and vocabulary selection.
+    selected, candidates = train_only_model_selection(train)
+    estimator = estimator_for(selected)
     estimator.fit(x_train, y_train)
     predictions = estimator.predict(x_test).astype(int).tolist()
 
@@ -150,8 +222,8 @@ def evaluate(train_rows: list[dict[str, str]], eval_rows: list[dict[str, str]]) 
     naive_predictions = [list(row) for row in zip(*baseline)]
 
     # Retrieval evidence: nearest *training* wording and its source database.
-    vectorizer = estimator.named_steps["tfidfvectorizer"]
-    train_vectors = vectorizer.transform(x_train)
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), lowercase=True)
+    train_vectors = vectorizer.fit_transform(x_train)
     test_vectors = vectorizer.transform(x_test)
     similarity = (test_vectors @ train_vectors.T).tocsr()
     results = []
@@ -180,7 +252,10 @@ def evaluate(train_rows: list[dict[str, str]], eval_rows: list[dict[str, str]]) 
         "train_examples": len(train),
         "evaluation_examples": len(test),
         "feature_names": list(FEATURES),
-        "model": "Supervised TF-IDF 1/2-grams + one-vs-rest logistic regression",
+        "model": f"Train-CV-selected {selected} TF-IDF + one-vs-rest logistic regression",
+        "selected_train_only_feature_style": selected,
+        "train_database_leave_one_out_candidate_scores": candidates,
+        "evaluation_data_used_for_model_selection": False,
         "training_only_nearest_question_retrieval": True,
         "trained_model_scores": measures(y_test, predictions),
         "majority_training_label_baseline_scores": measures(y_test, naive_predictions),
