@@ -1,0 +1,55 @@
+name: Independent AWS SQL generation and execution against three unseen schemas
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/independent_sql_exec.py"
+      - "tests/test_independent_sql_exec.py"
+      - ".github/workflows/independent-sql-exec.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-source-backed-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install prior trained intent-model dependencies and tests
+        run: python -m pip install numpy scipy scikit-learn pytest
+      - name: Local schema-agnostic FK join regression tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_independent_sql_exec.py
+      - name: Execute all published third-party SQL questions across source SQLite DBs
+        run: PYTHONPATH=src python -m diffragsql.independent_sql_exec
+      - name: Verify no fabricated accuracy or hidden denominator
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("runs/aws_independent_exec/evidence.json")
+          r=json.loads(p.read_text())
+          assert r["external_gold_attempted"]==170
+          assert r["external_gold_executable"] > 0
+          assert r["external_gold_executable"] + r["external_gold_not_executable"] == 170
+          assert len(r["source_sha256"])==6
+          assert all(len(h)==64 for h in r["source_sha256"].values())
+          assert not r["unrestricted_general_sql_generation_proven"]
+          assert not r["training_gold_leakage"]
+          assert len(r["cases"])==170
+          for name in ("original_question", "publisher_disambiguated_question"):
+              s=r["evaluation_variants"][name]
+              assert s["correct"]+s["incorrect"]+s["refused"]==r["external_gold_executable"]
+              assert 0<=s["accuracy_with_refusals"]<=1
+              print(name, s)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-AWS-multidatabase-sql-execution-evidence
+          path: runs/aws_independent_exec/evidence.json
+          if-no-files-found: error
