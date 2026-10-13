@@ -67,7 +67,7 @@ def test_fails_closed_on_unsupported_or_dangerous_sql(music):
     for phrase in (
         "", "DELETE FROM Artist;", "How many Albums; DROP TABLE Artist?",
         "Count the rows in secret table", "Count albums with unknown 'NOT_REAL'",
-        "Please find first five albums", "Find the maximum Price in Track",
+        "Please find first five albums", "Find the median Price in Track",
     ):
         with pytest.raises(ValueError):
             generate(music, phrase)
@@ -79,3 +79,18 @@ def test_rowbag_keeps_column_count_multiplicity_and_numeric_values():
     assert rowbag([(1,), (1,)]) != rowbag([(1,)])
     assert rowbag([(1, "A")]) != rowbag([("A", 1)])
     assert normalize("categories") == "category"
+
+
+def test_schema_join_top_group_and_numeric_extremum(music):
+    # Both SQL statements are synthesized from the caller's SQLite schema,
+    # with no known benchmark question-to-SQL string table.
+    first = generate(music, "Which artist has the most albums in Artist and Album tables?")
+    assert first["rows"] == [("AC/DC", 2)]
+    assert first["join_count"] == 1
+    assert "GROUP BY" in first["sql"]
+    assert "LIMIT 1" in first["sql"]
+    maximum = generate(music, "Find highest Price in Track table")
+    assert maximum["rows"] == [(4.5,)]
+    assert "MAX(" in maximum["sql"]
+    minimum = generate(music, "Find lowest Price in Track table")
+    assert minimum["rows"] == [(1.1,)]
