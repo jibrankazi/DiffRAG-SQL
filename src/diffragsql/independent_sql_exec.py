@@ -1,6 +1,6 @@
 """Foreign-key-aware, read-only SQLite SQL generator and third-party benchmark.
 
-Supports explicitly named tables, COUNT/SUM/AVG, foreign-key joins, bounded
+Supports explicitly named tables, COUNT/SUM/AVG, top-count/ordered extrema, foreign-key joins, bounded
 equality literals, grouping and year filters. Unsupported requests fail closed.
 Published AWS gold SQL is NEVER accessed by the generator.
 """
@@ -408,10 +408,11 @@ def run(folder="runs/aws_independent_exec", max_items=None):
         "scoring": "Exact multiset of full SQLite result rows, numeric values rounded to 6 digits",
         "training_gold_leakage": False,
         "prior_training_only_fx_32_phrases": True,
+        "trained_classifier_is_diagnostic_not_sql_decoder": True,
         "evaluation_variants": summary,
         "schema_aware_fk_join_generation": True,
         "unrestricted_general_sql_generation_proven": False,
-        "limitations": "Only bounded aggregation and FK joins, literal equality/group/year; does not implement arbitrary NL->SQL. Benchmark-owned disambiguated prompts are reported separately and are not zero-shot raw queries.",
+        "limitations": "Only bounded COUNT/SUM/AVG, grouped top-counts, numeric extrema and declared-FK joins, literal equality/group/year; not arbitrary NL->SQL. Training classifier predictions are diagnostics only; the SQL compiler is schema-aware but rule-constrained. Publisher-disambiguated prompts are separately reported and are NOT zero-shot raw questions.",
         "cases": reports,
     }
     (output / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
