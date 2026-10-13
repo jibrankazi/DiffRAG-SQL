@@ -30,6 +30,32 @@ NUMERIC = ("INT", "REAL", "NUM", "DEC", "FLOAT", "DOUBLE")
 MAX_ROWS = 15000
 
 
+def mentions_column(question: str, col: str) -> bool:
+    """Link camel-case, snake-case and naturally spaced schema column names."""
+    split = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", col).replace("_", " ")
+    question_norm = normalize(question)
+    for phrase in (normalize(col), normalize(split)):
+        if phrase and re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", question_norm):
+            return True
+    return False
+
+
+def primary_id(table: str, columns: dict[str, str]) -> str | None:
+    """Conservative key naming fallback for table-level grouping."""
+    expected = normalize(table).replace(" ", "") + "id"
+    candidates = [col for col in columns if normalize(col).replace(" ", "") == expected]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def display_column(columns: dict[str, str]) -> str | None:
+    """Find a unique common human-readable label column without inventing names."""
+    names = [col for col in columns if col.casefold() in (
+        "name", "title", "productname", "companyname", "teamname",
+        "categoryname", "artistname", "playlistname", "sportname",
+    )]
+    return names[0] if len(names) == 1 else None
+
+
 def quote(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
@@ -145,9 +171,22 @@ def generate(db: sqlite3.Connection, question: str, estimator=None) -> dict:
         "sum": bool(re.search(r"\b(?:sum of|total amount|total size)\b", q)),
     }
     intents = [key for key, flag in detected.items() if flag]
-    if len(intents) != 1:
-        raise ValueError("Needs exactly one supported aggregate intent")
-    operation = intents[0]
+    if len(intents) > 1:
+        raise ValueError("Multiple competing operations")
+    if intents:
+        operation = intents[0]
+    elif re.search(r"\b(?:most|highest|largest|top|earliest|oldest|lowest|smallest)\b", q):
+        operation = "extremum"
+    else:
+        raise ValueError("Question outside supported query patterns")
+    top_count = (
+        bool(re.search(r"\b(?:most|highest|largest)\b", q))
+        and not detected["average"] and not detected["sum"]
+        and len(included) > 1
+        and bool(re.search(r"\b(?:has|associated|number of|count of)\b", q))
+    )
+    if top_count:
+        operation = "top_count"
     def ref(table, col):
         return f"{quote(table)}.{quote(col)}"
     from_part = " FROM " + quote(first)
@@ -174,8 +213,7 @@ def generate(db: sqlite3.Connection, question: str, estimator=None) -> dict:
         expression = "COUNT(*)"
         if re.search(r"\b(each|per|grouped by)\b", q):
             cols = [(table, col) for table in included for col in tables[table]
-                    if re.search(r"(?<!\w)" + re.escape(normalize(col)) + r"(?!\w)", normalize(question))]
-            cols = [x for x in cols if not x[1].lower().endswith("id")]
+                    if mentions_column(question, col) and not col.lower().endswith("id")]
             if len(cols) != 1:
                 raise ValueError("Grouping column not unique")
             table, col = cols[0]
@@ -183,15 +221,63 @@ def generate(db: sqlite3.Connection, question: str, estimator=None) -> dict:
             group_part = f" GROUP BY {ref(table, col)}"
             if "descending" in q:
                 order_part = " ORDER BY COUNT(*) DESC"
-    else:
+    elif operation == "top_count":
+        if not joins:
+            raise ValueError("Top group count requires a declared relationship")
+        group_key = primary_id(first, tables[first])
+        display = display_column(tables[first])
+        if group_key is None or display is None:
+            raise ValueError("Unambiguous grouped entity and label not identified")
+        expression = f"{ref(first, display)}, COUNT(*)"
+        group_part = f" GROUP BY {ref(first, group_key)}"
+        order_part = " ORDER BY COUNT(*) DESC LIMIT 1"
+    elif operation in ("average", "sum"):
         matched = [(tab, col) for tab in included for col, typ in tables[tab].items()
                    if any(word in typ for word in NUMERIC)
-                   and re.search(r"(?<!\w)" + re.escape(normalize(col))
-                                 + r"(?!\w)", normalize(question))]
+                   and mentions_column(question, col)]
         if len(matched) != 1:
             raise ValueError("Aggregate needs exactly one named numeric column")
         tab, col = matched[0]
         expression = ("AVG" if operation == "average" else "SUM") + f"({ref(tab, col)})"
+    elif operation == "extremum":
+        # Order-by / extremum is compiled from explicit schema column evidence.
+        # Unsupported computed measures, multiple keys and implicit arithmetic
+        # are refused rather than returning a convenient unrelated ranking.
+        named_columns = [
+            (tab, col) for tab in included for col in tables[tab]
+            if mentions_column(question, col)
+        ]
+        if len(named_columns) != 1:
+            raise ValueError("Extremum requires exactly one explicit sort column")
+        tab, col = named_columns[0]
+        date_sort = "DATE" in col.upper()
+        descending = bool(re.search(
+            r"\b(?:most|highest|largest|latest|greatest|top|newest)\b", q))
+        ascending = bool(re.search(
+            r"\b(?:earliest|oldest|lowest|smallest)\b", q))
+        if descending == ascending:
+            raise ValueError("Ambiguous ordering direction")
+        is_projection = bool(re.search(r"\b(?:who|which|name|first and last)\b", q))
+        if is_projection:
+            labels = []
+            if "FirstName" in tables[first] and "LastName" in tables[first]:
+                labels = [ref(first, "FirstName"), ref(first, "LastName")]
+            else:
+                candidate = display_column(tables[first])
+                if candidate:
+                    labels = [ref(first, candidate)]
+            if not labels:
+                raise ValueError("Cannot project a clearly identified label")
+            expression = ", ".join(labels)
+            order_part = f" ORDER BY {ref(tab, col)} {'DESC' if descending else 'ASC'} LIMIT 1"
+        else:
+            if date_sort:
+                raise ValueError("Date extremum needs an explicit output entity")
+            if not any(x in tables[tab][col] for x in NUMERIC):
+                raise ValueError("Non-numeric minimum or maximum without projection")
+            expression = f"{'MAX' if descending else 'MIN'}({ref(tab, col)})"
+    else:
+        raise ValueError("Unimplemented structural intent")
     sql = "SELECT " + expression + from_part
     if where:
         sql += " WHERE " + " AND ".join(where)
