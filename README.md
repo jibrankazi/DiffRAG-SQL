@@ -1,3 +1,23 @@
+## Verified expanded public evaluation — October 13, 2026
+
+Two additional GitHub Actions experiments have now succeeded:
+
+1. **[Independent Defog SQL-Eval, unseen-database evaluation](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38324968571):** fit a TF-IDF + one-vs-rest logistic-regression model to **190 independently published** NL questions from **7 training databases**. Test on **40 independently published** questions from **4 entirely different databases** (broker, car_dealership, derm_treatment, ewallet), withholding their SQL until scoring. Six SQL-structure labels (join, where, group-by, order-by, limit, aggregate): trained **micro-F1 0.6724**, **macro-F1 0.6552**, **complete six-label match 2/40 (5%)**. The training-label majority baseline scored micro-F1 **0.2567**, macro-F1 **0.125**, complete-label match **0/40**. These figures describe SQL **structure prediction, not SQL execution accuracy or full generated SQL**. The frozen public upstream revision and both SHA-256 hashes, each evaluation question, predictions, retrieved training precedent, confusion-style per-label precision/recall/F1 and baseline scores are saved in the workflow artifact. Gold SQL is used only for scoring. Alternative gold SQL strings can contribute clause presence; this is a deliberately coarse structural measure.
+
+2. **[Real-source two-schema bounded SQL execution](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38325203663):** reuse the existing **32-phrase-trained** four-operation classifier without Chinook fine-tuning; require agreement with an explicit single aggregate intent; read real SQLite schema using `sqlite_master` and `PRAGMA table_info`, verify the specified table and numeric column, construct a single read-only aggregate `SELECT`, execute it and independently recompute the answer from source rows. Tests used the **real original Bank of Canada 2025 observations** and **Chinook's published *fictional sample* relational database**, not real business activity. **8/8 narrowly worded demonstration queries verified** (4 per schema), zero rejected in this selected demonstration. The sample database and original FX-source SQLite, SHA-256 source digests, concrete SQL queries, and answers are in the CI artifact. Additional local tests verify malformed input, unknown tables/columns, model disagreement and SQL injection refusal.
+
+Run manually (the workflows download the original external sources):
+
+```sh
+python -m pip install numpy scipy scikit-learn pytest
+PYTHONPATH=src python -m diffragsql.public_cross_schema_benchmark
+PYTHONPATH=src python -m diffragsql.safe_cross_schema_sql
+```
+
+**Research assessment:** real public cross-database structure evaluation and working *bounded* aggregate SQL now exist. Nevertheless, a **5% complete structure-label match on unseen databases** is insufficient evidence of generalized NL→SQL competence. The bounded eight-question SQL demonstration is hand-selected; no genuine Spider/BIRD execution-accuracy benchmark, unrestricted joins, new SQL constructions, cross-database semantic entity linking, jointly trained differentiable RAG, or deployable unrestricted SQL agent exists. Treat those as **remaining research work**, not completed features.
+
+---
+
 ## New executed trained SQL-intent baseline — October 12, 2026
 
 A [successful authenticated public-source CI
