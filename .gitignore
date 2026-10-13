@@ -1,0 +1,13 @@
+# Python generated files: never commit machine-specific bytecode.
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.DS_Store
