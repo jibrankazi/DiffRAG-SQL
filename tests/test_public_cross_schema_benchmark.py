@@ -78,4 +78,10 @@ def test_real_estimator_on_small_disjoint_schemas_has_no_execution_claim():
     assert not report["model_generated_executable_sql"]
     assert not report["execution_accuracy_measured"]
     assert len(report["example_results"]) == 24
+    assert report["selected_train_only_feature_style"] in ("word", "char", "hybrid")
+    assert report["evaluation_data_used_for_model_selection"] is False
+    variants = report["train_database_leave_one_out_candidate_scores"]
+    assert len(variants) == 3
+    assert all(len(v["folds"]) == len(TRAIN_DATABASES) for v in variants)
+    assert all(all(f["all_fitted_rows_exclude_heldout_database"] for f in v["folds"]) for v in variants)
     assert set(report["train_databases"]).isdisjoint(set(report["evaluation_databases"]))
