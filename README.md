@@ -1,3 +1,85 @@
+## New independent public SQL execution evaluation — October 13, 2026
+
+**Actual passing GitHub Actions workflows:**
+[Original public-database execution baseline](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38331293970) and
+[expanded foreign-key joins and grouped-ranking implementation](https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38331488243).
+The generator, workflow and tests are on `main`.
+
+### Execution benchmark (independently published gold SQL)
+
+The executable, schema-aware bounded SQL compiler in
+[`src/diffragsql/independent_sql_exec.py`](src/diffragsql/independent_sql_exec.py)
+downloads three source-pinned SQLite databases and their separate natural-language
+question/gold-SQL suites from AWS Samples' `natural-language-queries-for-datalakes`
+project: Chinook (55 questions), Northwind (57), MySports (58), **170 published
+questions** in total. The inputs are pinned to external commit
+`9823ae6fe0a83951294dd68aa3d74003e0b480d1` and hashed in the artifact.
+Only executable, read-only gold results are scored; each generated answer must
+match **all columns and full result-row multiplicity**, with numerical cells
+rounded to six decimals. Refusals count as failures in the denominator.
+
+| Measured outcome | Initial run | Expanded generator run |
+| --- | ---: | ---: |
+| Public questions attempted | 170 | 170 |
+| Independently executable gold references | 168 | 167 |
+| Original, unclarified questions answered correctly | **9** | **12** |
+| Original-question execution accuracy | 5.36% | **7.19%** |
+| Correct original-question queries involving generated FK joins | 2 | **4** |
+| Publisher-disambiguated questions answered correctly | 9 | **14** |
+| Disambiguated-question execution accuracy | 5.36% | **8.38%** |
+| Correct publisher-disambiguated queries with joins | 3 | **7** |
+
+The gold-reference denominator differed slightly between runs because the
+read-only reference scorer has a query timeout and a few upstream gold queries
+are incompatible with/timed out on the bundled databases. The exact reasons
+and all per-question SQL, successes, refusals and source hashes are preserved
+in the workflow artifacts. **These accuracy numbers are low**, not evidence of
+full NL→SQL generalization, and are **not** directly comparable to structure
+classification accuracy.
+
+The compiler discovers SQLite tables/columns and declared FK paths at runtime,
+allows up to three edges per join path, generates safe identifier-quoted SELECTs,
+uses SQLite-bound parameters for quoted filter literals, and supports restricted
+COUNT/SUM/AVG, numeric extrema, first/last-style projections, grouped top counts
+and year/group filters. Unsupported ambiguity and SQL-injection syntax are
+rejected. This is a **rule-constrained, schema-aware SQL generator**.
+The prior 32-example supervised four-intent classifier is called as a
+*diagnostic only*: it **does not** train or control the SQL decoder. The
+benchmark uses the original question and the third-party author's clarified
+question **as separate conditions**; clarified questions are not evidence of
+raw-query accuracy.
+
+### Proper train-only cross-schema learning validation
+
+The separately trained public Defog [structure prediction benchmark](
+https://github.com/jibrankazi/DiffRAG-SQL/actions/runs/38331672006)
+was extended with leave-one-training-database-out selection over word, character,
+and hybrid TF-IDF representations. It selected the **original word-based
+representation** using the seven training databases without using the four test
+databases or their SQL to choose hyperparameters. On the unchanged 40 independent
+test questions it still measured **micro-F1 0.6724**, **macro-F1 0.6552**, and
+**full six-tag match 2/40 (5%)**. The cross-validation did **not** improve the
+unseen-database score, and the structure predictor remains separate from
+generation. The honest outcome is that feature tuning alone did not solve the
+generalization gap.
+
+```sh
+python -m pip install numpy scipy scikit-learn pytest
+PYTHONPATH=src python -m pytest -q tests/test_independent_sql_exec.py tests/test_public_cross_schema_benchmark.py
+PYTHONPATH=src python -m diffragsql.independent_sql_exec
+PYTHONPATH=src python -m diffragsql.public_cross_schema_benchmark
+```
+
+**Open research requirements:** pretrained or more extensively trained
+schema-conditioned sequence-to-SQL generation; unrestricted projections and
+complex joins/subqueries/window functions; alignment of unstructured raw
+questions to unseen columns/tables; external full Spider/BIRD execution
+accuracy; hard-set adversarial testing; and substantial independent
+accuracy improvements. Do not describe this version as a complete,
+production-ready, generalizable, differentiable RAG-to-SQL system.
+
+---
+
 ## Verified expanded public evaluation — October 13, 2026
 
 Two additional GitHub Actions experiments have now succeeded:
