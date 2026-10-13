@@ -1,0 +1,61 @@
+name: Real Bank of Canada and Chinook cross-schema bounded SQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/diffragsql/safe_cross_schema_sql.py"
+      - "tests/test_safe_cross_schema_sql.py"
+      - ".github/workflows/safe-cross-schema-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-source-backed-schema-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install numpy scipy scikit-learn pytest
+      - name: Test SQL identifier escaping, schema checks, refusals and actual SQLite execution
+        run: PYTHONPATH=src python -m pytest -q tests/test_safe_cross_schema_sql.py tests/test_trained_fx_rag_sql.py
+      - name: Fetch pinned published Chinook sample and original Bank of Canada rates; execute grounded SQL
+        run: PYTHONPATH=src python -m diffragsql.safe_cross_schema_sql
+      - name: Independently verify exactly which source-backed queries succeeded
+        run: |
+          python - <<'PY'
+          import json, sqlite3
+          from pathlib import Path
+          out = Path("runs/cross_schema_aggregate_sql")
+          report = json.loads((out/"evidence.json").read_text())
+          assert report["distinct_live_sqlite_schemas_tested"] == 2
+          assert report["attempted_questions"] == 8
+          assert report["verified_sql_answers"] >= 2
+          assert report["all_executed_sql_independently_checked"]
+          assert not report["arbitrary_sql_or_general_nl_to_sql_proven"]
+          assert len(report["source_sha256"]) == 2
+          assert all(len(d) == 64 for d in report["source_sha256"].values())
+          assert report["verified_sql_answers"] + report["refused_unsafe_or_model_disagreement"] == 8
+          sqlite_files = {
+              "published_chinook_sample": out/"Chinook_Sqlite.sqlite",
+              "original_bank_of_canada": out/"original_fx.sqlite3",
+          }
+          for source, path in sqlite_files.items():
+              with sqlite3.connect(path) as db:
+                  for row in report["traces"]:
+                      if row["source"] != source or row["outcome"] != "verified":
+                          continue
+                      assert row["independent_python_check_passed"]
+                      assert db.execute(row["safe_generated_sql"]).fetchone()[0] == row["actual_sql_answer"]
+          print("Validated source-backed actual SQLite executions and refusals (not general SQL competence).")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reproducible-original-Bank-of-Canada-and-Chinook-cross-schema-SQL
+          path: runs/cross_schema_aggregate_sql/
+          if-no-files-found: error
